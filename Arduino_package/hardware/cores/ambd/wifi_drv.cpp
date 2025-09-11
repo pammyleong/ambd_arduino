@@ -37,7 +37,7 @@ static int wifi_mode = 0;
 
 static rtw_network_info_t wifi;
 static rtw_ap_info_t ap;
-static unsigned char password[65] = {0};
+static unsigned char password[WL_WPA_KEY_MAX_LENGTH] = {0};
 
 rtw_wifi_setting_t WiFiDrv::wifi_setting;
 
@@ -69,51 +69,31 @@ static void init_wifi_struct(void) {
 }
 
 void WiFiDrv::wifiDriverInit() {
-    if (arduino_wifi_mode_check == 0x11) {
-        if (init_wlan == false) {
-            init_wlan = true;
-            LwIP_Init();
-            wifi_on(RTW_MODE_STA_AP);
-            wifi_mode = RTW_MODE_STA_AP;
-        } else if (init_wlan == true) {
-            if (wifi_mode != RTW_MODE_STA_AP) {
-                dhcps_deinit();
-                wifi_off();
-                vTaskDelay(20);
-                wifi_on(RTW_MODE_STA_AP);
-                wifi_mode = RTW_MODE_STA_AP;
-            }
-        }
-    } else if (arduino_wifi_mode_check == 0x10) {
-        if (init_wlan == false) {
-            init_wlan = true;
-            LwIP_Init();
-            wifi_on(RTW_MODE_AP);
-            wifi_mode = RTW_MODE_AP;
-        } else if (init_wlan == true) {
-            if (wifi_mode != RTW_MODE_AP) {
-                dhcps_deinit();
-                wifi_off();
-                vTaskDelay(20);
-                wifi_on(RTW_MODE_AP);
-                wifi_mode = RTW_MODE_AP;
-            }
+    int desired_wifi_mode;
+    switch (arduino_wifi_mode_check) {
+    case 0x11:
+        desired_wifi_mode = RTW_MODE_STA_AP;
+        break;
+    case 0x10:
+        desired_wifi_mode = RTW_MODE_AP;
+        break;
+    default:
+        desired_wifi_mode = RTW_MODE_STA;
+        break;
+    }
+    if ( init_wlan ) {
+        if (wifi_mode != desired_wifi_mode) {
+            dhcps_deinit();
+            wifi_off();
+            vTaskDelay(20);
+            wifi_on(desired_wifi_mode);
+            wifi_mode = desired_wifi_mode;
         }
     } else {
-        if (init_wlan == false) {
-            init_wlan = true;
-            LwIP_Init();
-            wifi_on(RTW_MODE_STA);
-            wifi_mode = RTW_MODE_STA;
-        } else if (init_wlan == true) {
-            if (wifi_mode != RTW_MODE_STA) {
-                dhcps_deinit();
-                wifi_off();
-                vTaskDelay(20);
-                wifi_on(RTW_MODE_STA);
-                wifi_mode = RTW_MODE_STA;
-            }
-        }
+        init_wlan = true;
+        LwIP_Init();
+        wifi_on(desired_wifi_mode);
+        wifi_mode = desired_wifi_mode;
     }
 }
 
@@ -462,11 +442,7 @@ uint8_t* WiFiDrv::getMacAddress() {
 }
 
 void WiFiDrv::getIpAddress(IPAddress& ip, uint8_t interface) {
-    if (interface == 0) {
-        ip = LwIP_GetIP(&xnetif[0]);
-    } else {
-        ip = LwIP_GetIP(&xnetif[1]);
-    }
+    ip = LwIP_GetIP(&xnetif[interface & 0x1]);
 }
 
 void WiFiDrv::getIpv6Address() {
@@ -485,19 +461,11 @@ void WiFiDrv::getIpv6Address() {
 }
 
 void WiFiDrv::getSubnetMask(IPAddress& mask, uint8_t interface) {
-    if (interface == 0) {
-        mask = LwIP_GetMASK(&xnetif[0]);
-    } else {
-        mask = LwIP_GetMASK(&xnetif[1]);
-    }
+    mask = LwIP_GetMASK(&xnetif[interface & 0x1]);
 }
 
 void WiFiDrv::getGatewayIP(IPAddress& ip, uint8_t interface) {
-    if (interface == 0) {
-        ip = LwIP_GetGW(&xnetif[0]);
-    } else {
-        ip = LwIP_GetGW(&xnetif[1]);
-    }
+    ip = LwIP_GetGW(&xnetif[interface & 0x1]);
 }
 
 char* WiFiDrv::getCurrentSSID() {
